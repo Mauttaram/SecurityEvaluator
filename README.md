@@ -1,7 +1,7 @@
 ## Quickstart
 1. Clone (or fork) the repo:
 ```
-git clone git@github.com:agentbeats/tutorial
+git clone git@github.com:Mauttaram/SecurityEvaluator.git
 cd agentbeats-tutorial
 ```
 2. Install dependencies

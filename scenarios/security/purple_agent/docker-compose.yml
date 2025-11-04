@@ -5,7 +5,7 @@ services:
     build:
       context: ./api_app
     expose:
-      - "8000"
+      - "8000:8000"
 
   modsec_proxy:
     image: owasp/modsecurity-crs:nginx

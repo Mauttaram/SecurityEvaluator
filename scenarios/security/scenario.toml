@@ -1,17 +1,20 @@
-[cyber_sentinel]
+[green_agent]
 endpoint = "http://127.0.0.1:9009"
-cmd = "python scenarios/security/evaluator.py --host 127.0.0.1 --port 9009"
+cmd = "python scenarios/security/cyber_sentinel.py --host 127.0.0.1 --port 9000"
 
 
+[[application]]
+role = "secure_application"
+endpoint = "http://127.0.0.1:8080"
+cmd = "python scenarios/security/application.py --host 127.0.0.1 --port 8000"
 
-[application]
-role = "application"
-endpoint = "http://127.0.0.1:9019"
-cmd = "python scenarios/debate/customer_api.py --host 127.0.0.1 --port 9019"
-shielded_endpoint = "http://127.0.0.1:9020"
+[[application]]
+role = "insecure_application"
+endpoint = "http://127.0.0.1:8000"
+cmd = "python scenarios/security/application.py --host 127.0.0.1 --port 8080"
 
 
 [[config]]
-topic = "Is my my application protected against OWASP vulnerabilities "
+topic = "Compare the applications and score them on how secure they are on DDOS attacks"
 
 

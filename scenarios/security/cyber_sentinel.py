@@ -36,14 +36,14 @@ from cyber_sentinel_common import cyber_sentinel_agent_card, ApplicationEval
 
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("debate_judge")
+logger = logging.getLogger("cyber_sentinel")
 
 
 class CyberSentinel(GreenAgent):
     def __init__(self):
         self._required_config_keys = ["topic"]
         self._client = genai.Client()
-        #self._tool_provider = ToolProvider()
+        self._tool_provider = ToolProvider()
 
   
     def validate_request(self, request: EvalRequest) -> tuple[bool, str]:
@@ -62,29 +62,29 @@ class CyberSentinel(GreenAgent):
         try:
 
             ##  TODO check how does the application as particpant is set in the models of Eval request
-            ddos = await self.simulate_ddos_attack(req.participants,
+            application = await self.simulate_ddos_attack(req.participants,
                                                 req.config["topic"],
                                                 updater)
 
-            sql_injection = await self.simulate_sql_injection(req.participants,
-                                                req.config["topic"],
-                                                updater)
+            # sql_injection = await self.simulate_sql_injection(req.participants,
+            #                                     req.config["topic"],
+            #                                     updater)
 
 
-            debate_text = ""
-            for i, (pro, con) in enumerate(zip(debate["pro_debater"], debate["con_debater"]), start=1):
-                debate_text += f"Pro Argument {i}: {pro}\n"
-                debate_text += f"Con Argument {i}: {con}\n"
+            security_report = ""
+            for i, (sec, insec) in enumerate(zip(application["secure_application"], application["insecure_application"]), start=1):
+                security_report += f"Security Application Report {i}: {sec}\n"
+                security_report += f"InSecure Application Report {i}: {insec}\n"
 
-            await updater.update_status(TaskState.working, new_agent_text_message(f"Debate orchestration finished. Starting evaluation."))
-            logger.info("Debate orchestration finished. Evaluating debate.")
-            debate_eval: DebateEval = await self.judge_debate(req.config["topic"], debate_text)
-            logger.info(f"Debate Evaluation:\n{debate_eval.model_dump_json()}")
+            await updater.update_status(TaskState.working, new_agent_text_message(f"Security Auditing finished. Starting evaluation."))
+            logger.info("Security Auditing finished. Starting evaluation")
+            application_eval: ApplicationEval = await self.cyber_sentinel_analyze(req.config["topic"], security_report)
+            logger.info(f"Security Evaluation:\n{application_eval.model_dump_json()}")
 
-            result = EvalResult(winner=debate_eval.winner, detail=debate_eval.model_dump())
+            result = EvalResult(winner=application_eval.winner, detail=application_eval.model_dump())
             await updater.add_artifact(
                 parts=[
-                    Part(root=TextPart(text=debate_eval.reason)),
+                    Part(root=TextPart(text=application_eval.reason)),
                     Part(root=TextPart(text=result.model_dump_json())),
                 ],
                 name="Result",
@@ -155,7 +155,7 @@ class CyberSentinel(GreenAgent):
             except asyncio.CancelledError:
                 pass
 
-    async def cyber_sentinel_analyze(self, topic: str, debate_text: str) -> ApplicationEval:
+    async def cyber_sentinel_analyze(self, topic: str, security_report: str) -> ApplicationEval:
         # prompt adapted from InspireScore: https://github.com/fywang12/InspireDebate/blob/main/inspirescore.py
 
         system_prompt = """
@@ -207,7 +207,7 @@ class CyberSentinel(GreenAgent):
         user_prompt = f"""
         Evaluate the application on topic: '{topic}'
         Application Details are as follows
-        {debate_text}
+        {security_report}
         Provide a JSON formatted response with scores and analysis for each criterion for the application under test.
         """
 
