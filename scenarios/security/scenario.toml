@@ -1,0 +1,17 @@
+[cyber_sentinel]
+endpoint = "http://127.0.0.1:9009"
+cmd = "python scenarios/security/evaluator.py --host 127.0.0.1 --port 9009"
+
+
+
+[application]
+role = "application"
+endpoint = "http://127.0.0.1:9019"
+cmd = "python scenarios/debate/customer_api.py --host 127.0.0.1 --port 9019"
+shielded_endpoint = "http://127.0.0.1:9020"
+
+
+[[config]]
+topic = "Is my my application protected against OWASP vulnerabilities "
+
+

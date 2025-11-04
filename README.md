@@ -18,6 +18,13 @@ Add your Google API key to the .env file
 ```
 uv run agentbeats-run scenarios/debate/scenario.toml
 ```
+if using docker
+```docker run --rm -it \
+  -p 9009:9009 -p 9018:9018 -p 9019:9019 \
+  --env-file ./sample.env \
+  agentbeats-tutorial
+  ```
+
 This command will:
 - Start the agent servers using the commands specified in scenario.toml
 - Construct an `assessment_request` message containing the participant's role-endpoint mapping and the assessment config
