@@ -1,10 +1,5 @@
 # AgentBeats Scenario Configuration
 
-# Existing Cyber Sentinel Green Agent
-[green_agent]
-endpoint = "http://127.0.0.1:9009"
-cmd = "python scenarios/security/cyber_sentinel.py --host 127.0.0.1 --port 9000"
-
 # SQL Injection Detection Benchmark Green Agent
 [sql_injection_judge]
 role = "green_agent"
@@ -18,21 +13,6 @@ role = "purple_agent"
 endpoint = "http://127.0.0.1:8000/detect"
 cmd = "python purple_agents/baseline/sql_detector.py --host 127.0.0.1 --port 8000"
 description = "Baseline SQL injection detector using pattern matching"
-
-# Existing Application Configurations
-[[application]]
-role = "secure_application"
-endpoint = "http://127.0.0.1:80"
-cmd = "python scenarios/security/application.py --host 127.0.0.1 --port 8000"
-
-[[application]]
-role = "insecure_application"
-endpoint = "http://127.0.0.1:8000"
-cmd = "python scenarios/security/application.py --host 127.0.0.1 --port 8080"
-
-# Existing Config
-[[config]]
-topic = "Compare the applications and score them on how secure they are on DDOS attacks"
 
 # SQL Injection Benchmark Configurations
 [[config]]
