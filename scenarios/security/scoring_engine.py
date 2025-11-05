@@ -12,13 +12,22 @@ This module calculates comprehensive evaluation metrics including:
 from typing import Any
 from collections import defaultdict
 
-from .models import (
-    TestResult,
-    DetectionOutcome,
-    ConfusionMatrix,
-    EvaluationMetrics,
-    CategoryMetrics
-)
+try:
+    from .models import (
+        TestResult,
+        DetectionOutcome,
+        ConfusionMatrix,
+        EvaluationMetrics,
+        CategoryMetrics
+    )
+except ImportError:
+    from models import (
+        TestResult,
+        DetectionOutcome,
+        ConfusionMatrix,
+        EvaluationMetrics,
+        CategoryMetrics
+    )
 
 
 class ScoringEngine:

@@ -11,12 +11,20 @@ from pathlib import Path
 from typing import Any
 from datetime import datetime
 
-from .models import (
-    CodeSample,
-    DatasetInfo,
-    DatasetMetadata,
-    TestPhase
-)
+try:
+    from .models import (
+        CodeSample,
+        DatasetInfo,
+        DatasetMetadata,
+        TestPhase
+    )
+except ImportError:
+    from models import (
+        CodeSample,
+        DatasetInfo,
+        DatasetMetadata,
+        TestPhase
+    )
 
 
 class DatasetManager:

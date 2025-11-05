@@ -11,17 +11,30 @@ This module implements autonomous decision-making for adaptive testing:
 from datetime import datetime
 from typing import Any
 
-from .models import (
-    TestResult,
-    TestPhase,
-    TestPlan,
-    TestAllocation,
-    PerformanceAnalysis,
-    AutonomousDecision,
-    CategoryMetrics,
-    EvaluationMetrics
-)
-from .scoring_engine import ScoringEngine
+try:
+    from .models import (
+        TestResult,
+        TestPhase,
+        TestPlan,
+        TestAllocation,
+        PerformanceAnalysis,
+        AutonomousDecision,
+        CategoryMetrics,
+        EvaluationMetrics
+    )
+    from .scoring_engine import ScoringEngine
+except ImportError:
+    from models import (
+        TestResult,
+        TestPhase,
+        TestPlan,
+        TestAllocation,
+        PerformanceAnalysis,
+        AutonomousDecision,
+        CategoryMetrics,
+        EvaluationMetrics
+    )
+    from scoring_engine import ScoringEngine
 
 
 class AdaptiveTestPlanner:

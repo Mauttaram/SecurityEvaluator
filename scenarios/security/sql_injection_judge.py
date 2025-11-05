@@ -19,24 +19,45 @@ from agentbeats.green_executor import GreenAgent
 from agentbeats.models import EvalRequest as AgentBeatsEvalRequest
 from a2a.server.tasks import TaskUpdater
 
-from .models import (
-    EvalRequest,
-    EvalResponse,
-    CodeSample,
-    PurpleAgentResponse,
-    TestResult,
-    DetectionOutcome,
-    EvaluationConfig,
-    EvaluationMode,
-    AdaptiveConfig,
-    AdaptiveEvaluationResult,
-    RoundResults,
-    TestPhase
-)
-from .dataset_manager import DatasetManager
-from .scoring_engine import ScoringEngine
-from .adaptive_planner import AdaptiveTestPlanner
-from .agent_card import sql_injection_agent_card
+# Handle both relative and absolute imports
+try:
+    from .models import (
+        EvalRequest,
+        EvalResponse,
+        CodeSample,
+        PurpleAgentResponse,
+        TestResult,
+        DetectionOutcome,
+        EvaluationConfig,
+        EvaluationMode,
+        AdaptiveConfig,
+        AdaptiveEvaluationResult,
+        RoundResults,
+        TestPhase
+    )
+    from .dataset_manager import DatasetManager
+    from .scoring_engine import ScoringEngine
+    from .adaptive_planner import AdaptiveTestPlanner
+    from .agent_card import sql_injection_agent_card
+except ImportError:
+    from models import (
+        EvalRequest,
+        EvalResponse,
+        CodeSample,
+        PurpleAgentResponse,
+        TestResult,
+        DetectionOutcome,
+        EvaluationConfig,
+        EvaluationMode,
+        AdaptiveConfig,
+        AdaptiveEvaluationResult,
+        RoundResults,
+        TestPhase
+    )
+    from dataset_manager import DatasetManager
+    from scoring_engine import ScoringEngine
+    from adaptive_planner import AdaptiveTestPlanner
+    from agent_card import sql_injection_agent_card
 
 
 # Configure logging
@@ -595,36 +616,67 @@ class SQLInjectionJudge(GreenAgent):
 
 async def main():
     """Main entry point for running the Green Agent."""
+    import contextlib
+    import uvicorn
+    from agentbeats.green_executor import GreenExecutor
+    from a2a.server.apps import A2AStarletteApplication
+    from a2a.server.request_handlers import DefaultRequestHandler
+    from a2a.server.tasks import InMemoryTaskStore
+
     parser = argparse.ArgumentParser(description="SQL Injection Detection Benchmark - Green Agent")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=9009, help="Port to bind to")
+    parser.add_argument("--port", type=int, default=9010, help="Port to bind to")
     parser.add_argument(
         "--dataset-root",
         default="datasets/sql_injection",
         help="Root directory containing datasets"
     )
-    parser.add_argument("--card-url", default="http://localhost:9009/card", help="Agent card URL")
+    parser.add_argument("--card-url", type=str, help="External URL to provide in the agent card")
+    parser.add_argument("--cloudflare-quick-tunnel", action="store_true",
+                       help="Use a Cloudflare quick tunnel. Requires cloudflared. This will override --card-url")
 
     args = parser.parse_args()
 
-    # Initialize judge
-    dataset_root = Path(args.dataset_root)
-    judge = SQLInjectionJudge(dataset_root)
+    # Handle Cloudflare tunnel or use provided URL
+    if args.cloudflare_quick_tunnel:
+        from agentbeats.cloudflare import quick_tunnel
+        agent_url_cm = quick_tunnel(f"http://{args.host}:{args.port}")
+    else:
+        agent_url_cm = contextlib.nullcontext(args.card_url or f"http://{args.host}:{args.port}/")
 
-    # Create agent card
-    agent_card = sql_injection_agent_card(
-        agent_name="sql_injection_judge",
-        card_url=args.card_url
-    )
+    async with agent_url_cm as agent_url:
+        # Initialize judge
+        dataset_root = Path(args.dataset_root)
+        judge = SQLInjectionJudge(dataset_root)
 
-    # Register agent card
-    judge.register_card(agent_card)
+        # Create executor
+        executor = GreenExecutor(judge)
 
-    # Start server
-    logger.info(f"Starting SQL Injection Judge on {args.host}:{args.port}")
-    logger.info(f"Dataset root: {dataset_root.absolute()}")
+        # Create agent card
+        agent_card = sql_injection_agent_card(
+            agent_name="sql_injection_judge",
+            card_url=agent_url
+        )
 
-    await judge.start(host=args.host, port=args.port)
+        # Create request handler
+        request_handler = DefaultRequestHandler(
+            agent_executor=executor,
+            task_store=InMemoryTaskStore(),
+        )
+
+        # Create A2A server
+        server = A2AStarletteApplication(
+            agent_card=agent_card,
+            http_handler=request_handler,
+        )
+
+        # Start server
+        logger.info(f"Starting SQL Injection Judge on {args.host}:{args.port}")
+        logger.info(f"Dataset root: {dataset_root.absolute()}")
+
+        uvicorn_config = uvicorn.Config(server.build(), host=args.host, port=args.port)
+        uvicorn_server = uvicorn.Server(uvicorn_config)
+        await uvicorn_server.serve()
 
 
 if __name__ == "__main__":
