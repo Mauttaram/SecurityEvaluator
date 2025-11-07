@@ -1,2 +1,2 @@
 # SecurityEvaluator
-Evaluator for Cyber Security Evaluator
+Cyber Security Evaluator for Agents
