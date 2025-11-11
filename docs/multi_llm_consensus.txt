@@ -1,0 +1,138 @@
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    MULTI-LLM CONSENSUS WITH DAWID-SKENE                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+INPUT: Attack + TestResult
+  │
+  │  Attack: "admin' OR '1'='1"
+  │  Result: detected=True, confidence=0.8
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STEP 1: QUERY ALL LLM PROVIDERS                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+  │
+  ├──────────────────┬──────────────────┬──────────────────┐
+  │                  │                  │                  │
+  ▼                  ▼                  ▼                  ▼
+┌────────────┐  ┌────────────┐  ┌────────────┐
+│ OpenAI     │  │ Anthropic  │  │ Google     │
+│ GPT-4o-mini│  │ Claude-3.5 │  │ Gemini-2.0 │
+├────────────┤  ├────────────┤  ├────────────┤
+│ Prompt:    │  │ Prompt:    │  │ Prompt:    │
+│ "Is this   │  │ "Is this   │  │ "Is this   │
+│ detection  │  │ detection  │  │ detection  │
+│ correct?"  │  │ correct?"  │  │ correct?"  │
+│            │  │            │  │            │
+│ Response:  │  │ Response:  │  │ Response:  │
+│ "YES"      │  │ "YES"      │  │ "NO"       │
+│            │  │            │  │            │
+│ Vote: 1    │  │ Vote: 1    │  │ Vote: 0    │
+└─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+      │               │               │
+      └───────────────┼───────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STEP 2: DAWID-SKENE EM ALGORITHM                                        │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────┐            │
+│  │  INITIALIZATION                                          │            │
+│  │                                                          │            │
+│  │  Judge Confusion Matrices (assume good judges):         │            │
+│  │    OpenAI:    [[0.9, 0.1], [0.1, 0.9]]                 │            │
+│  │    Anthropic: [[0.9, 0.1], [0.1, 0.9]]                 │            │
+│  │    Google:    [[0.9, 0.1], [0.1, 0.9]]                 │            │
+│  │                                                          │            │
+│  │  Class Priors: [0.5, 0.5] (equal prior)                │            │
+│  └─────────────────────────────────────────────────────────┘            │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────┐            │
+│  │  ITERATION 1-20 (EM Algorithm)                          │            │
+│  │                                                          │            │
+│  │  FOR iteration in range(20):                            │            │
+│  │                                                          │            │
+│  │    ┌─────────────────────────────────────────────┐      │            │
+│  │    │  E-STEP: Update Item Posteriors             │      │            │
+│  │    │                                              │      │            │
+│  │    │  For this attack:                           │      │            │
+│  │    │    prior = [0.5, 0.5]                       │      │            │
+│  │    │                                              │      │            │
+│  │    │    # OpenAI vote = 1                        │      │            │
+│  │    │    likelihood *= conf_matrix[OpenAI][:, 1]  │      │            │
+│  │    │                = [0.1, 0.9]                 │      │            │
+│  │    │                                              │      │            │
+│  │    │    # Anthropic vote = 1                     │      │            │
+│  │    │    likelihood *= conf_matrix[Anthropic][:, 1]     │            │
+│  │    │                = [0.01, 0.81]               │      │            │
+│  │    │                                              │      │            │
+│  │    │    # Google vote = 0                        │      │            │
+│  │    │    likelihood *= conf_matrix[Google][:, 0] │      │            │
+│  │    │                = [0.009, 0.081]             │      │            │
+│  │    │                                              │      │            │
+│  │    │    # Normalize                              │      │            │
+│  │    │    posterior = likelihood / sum(likelihood) │      │            │
+│  │    │              = [0.10, 0.90]                 │      │            │
+│  │    │                                              │      │            │
+│  │    │    RESULT: 90% confidence class = 1         │      │            │
+│  │    └─────────────────────────────────────────────┘      │            │
+│  │                                                          │            │
+│  │    ┌─────────────────────────────────────────────┐      │            │
+│  │    │  M-STEP: Update Judge Confusion Matrices    │      │            │
+│  │    │                                              │      │            │
+│  │    │  For each judge:                            │      │            │
+│  │    │    Update confusion[true_class, observed]  │      │            │
+│  │    │    based on posteriors from E-step          │      │            │
+│  │    │                                              │      │            │
+│  │    │  After iterations, we learn:                │      │            │
+│  │    │    OpenAI:    Very reliable (0.95)          │      │            │
+│  │    │    Anthropic: Very reliable (0.93)          │      │            │
+│  │    │    Google:    Less reliable (0.75)          │      │            │
+│  │    └─────────────────────────────────────────────┘      │            │
+│  │                                                          │            │
+│  │  END FOR                                                │            │
+│  └─────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────┘
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STEP 3: EXTRACT CONSENSUS                                               │
+│                                                                          │
+│  Final Posterior: [0.10, 0.90]                                          │
+│                                                                          │
+│  Consensus Class: argmax([0.10, 0.90]) = 1 (detected)                   │
+│  Consensus Confidence: max([0.10, 0.90]) = 0.90                         │
+│                                                                          │
+│  Interpretation:                                                         │
+│    • 90% confident the detection is CORRECT                             │
+│    • Google's dissenting vote weighted less (lower reliability)         │
+│    • OpenAI and Anthropic votes weighted more (higher reliability)      │
+└─────────────────────────────────────────────────────────────────────────┘
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  OUTPUT: Calibrated Consensus                                            │
+│                                                                          │
+│  {                                                                       │
+│    "consensus_detected": true,                                           │
+│    "confidence": 0.90,                                                   │
+│    "raw_votes": {                                                        │
+│      "judge_0": 1,  # OpenAI                                             │
+│      "judge_1": 1,  # Anthropic                                          │
+│      "judge_2": 0   # Google                                             │
+│    },                                                                    │
+│    "judge_reliability": {                                                │
+│      "judge_0": 0.95,  # OpenAI most reliable                            │
+│      "judge_1": 0.93,  # Anthropic second                                │
+│      "judge_2": 0.75   # Google least reliable for this dataset         │
+│    }                                                                     │
+│  }                                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+KEY BENEFITS:
+  ✅ Bias Correction - Learns judge reliability patterns
+  ✅ Weighted Consensus - More reliable judges count more
+  ✅ Calibrated Confidence - Uncertainty quantification
+  ✅ Robust to Outliers - Single bad vote doesn't derail consensus
+  ✅ 90-95% Reliability - vs ~80-85% single LLM

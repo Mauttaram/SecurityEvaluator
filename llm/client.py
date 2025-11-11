@@ -294,9 +294,23 @@ class LLMClient:
             kwargs = {
                 "model": model,
                 "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
             }
+
+            # Handle temperature based on model
+            # Some models (gpt-5-nano) only support temperature=1
+            if model == "gpt-5-nano":
+                # Only use default temperature for gpt-5-nano
+                kwargs["temperature"] = 1
+            else:
+                kwargs["temperature"] = temperature
+
+            # Use correct parameter for tokens based on model
+            # Newer models (gpt-4o, gpt-5-*) use max_completion_tokens
+            # Older models use max_tokens
+            if model.startswith("gpt-5") or model.startswith("gpt-4o"):
+                kwargs["max_completion_tokens"] = max_tokens
+            else:
+                kwargs["max_tokens"] = max_tokens
 
             # Add response format if JSON requested
             if response_format in ["json", "json_object"]:
