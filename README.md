@@ -10,26 +10,47 @@
 
 ## 🚀 Quick Start
 
-### One-Command Test (Recommended)
+### Step 1: Install Dependencies (First Time)
 
+**Using UV (Recommended - Fast & Modern):**
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install all dependencies (creates .venv automatically)
+uv sync
+```
+
+**Alternative - Using pip:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+pip install -r requirements.txt
+```
+
+**📖 Complete UV guide:** See [UV_SETUP.md](UV_SETUP.md) for detailed instructions.
+
+### Step 2: Run Tests
+
+**One-Command Test (Recommended):**
 ```bash
 ./tests/run_tests.sh
 ```
 
 That's it! The script will:
+- ✅ Auto-detect uv or traditional venv
 - ✅ Start the Purple Agent (target system)
 - ✅ Run security evaluation tests
 - ✅ Show results
 - ✅ Clean up automatically
 
-### Manual Test
-
+**Manual Test:**
 ```bash
 # Terminal 1: Start Purple Agent (target system)
-python3 purple_agents/home_automation_agent.py --port 8000
+uv run python purple_agents/home_automation_agent.py --port 8000
 
 # Terminal 2: Run test (security evaluator)
-python3 tests/dev_quick_test.py
+uv run python tests/test_final_comprehensive.py
 ```
 
 **Other Options:** See [How to Run](#-how-to-run) section below for production Green Agent setup.
@@ -358,24 +379,44 @@ For complete details, see:
 
 ## 🔧 Installation
 
-### Dependencies
+### Quick Install with UV (Recommended)
+
+**UV is 10-100x faster than pip and handles virtual environments automatically.**
 
 ```bash
-python3 -m pip install --user --break-system-packages \
-  pydantic httpx a2a-sdk
+# 1. Install uv (one-time)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install all dependencies (auto-creates .venv)
+uv sync
+
+# 3. Verify
+uv run python -c "import pydantic, httpx; print('✅ Dependencies installed')"
 ```
 
-### Verify
+**📖 Complete guide:** See [UV_SETUP.md](UV_SETUP.md) for detailed uv usage, troubleshooting, and migration from pip.
+
+### Alternative: Traditional pip Installation
 
 ```bash
-python3 -c "import pydantic, httpx; print('✅ Dependencies installed')"
+# 1. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Verify
+python -c "import pydantic, httpx; print('✅ Dependencies installed')"
 ```
 
 ### For Production (Optional)
 
 ```bash
 # AgentBeats SDK (for competition)
-pip install agentbeats
+uv add agentbeats
+# OR: pip install agentbeats
 ```
 
 ---
@@ -385,6 +426,7 @@ pip install agentbeats
 ### Main Documentation
 
 - **README.md** ← You are here (main guide for team)
+- **UV_SETUP.md** ← Complete UV package manager guide ⭐
 - **tests/run_tests.sh** ← One-command test script
 - **tests/test_final_comprehensive.py** ← Comprehensive test (both MITRE paths)
 
