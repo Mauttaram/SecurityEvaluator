@@ -22,6 +22,13 @@ use_coverage_tracking = true
 use_llm_validation = true  # Use LLM for semantic validation
 llm_mutation_ratio = 0.3  # 30% of mutations use LLM
 use_llm_remediation = true  # Generate fix suggestions
+
+# Dual Evaluation (Green Agent + Purple Agent Perspectives)
+use_dual_evaluation = true  # Enable comprehensive dual evaluation
+generate_reports = true  # Generate markdown and JSON reports
+report_dir = "reports"  # Directory for generated reports
+report_format = ["markdown", "json"]  # Both formats
+
 num_boundary_probers = 1
 num_exploiters = 2
 num_mutators = 1

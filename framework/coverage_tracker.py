@@ -75,11 +75,21 @@ class CoverageTracker:
         tested_techniques: Dict[str, int] = {}  # technique → num_tests
 
         for attack in evaluation_result.attacks:
-            # Get MITRE techniques for this attack
-            mitre_techs = self.mitre_mapping.get(attack.technique, [])
+            # First, try to get MITRE technique directly from attack metadata
+            mitre_tech_id = None
+            if hasattr(attack, 'metadata') and isinstance(attack.metadata, dict):
+                mitre_tech_id = attack.metadata.get('mitre_technique_id')
+            
+            if mitre_tech_id:
+                # Direct MITRE mapping from metadata
+                tested_techniques[mitre_tech_id] = tested_techniques.get(mitre_tech_id, 0) + 1
+            elif hasattr(attack, 'technique') and attack.technique:
+                # Fallback: Get MITRE techniques from scenario mapping
+                mitre_techs = self.mitre_mapping.get(attack.technique, [])
+                for mitre_tech in mitre_techs:
+                    tested_techniques[mitre_tech] = tested_techniques.get(mitre_tech, 0) + 1
 
-            for mitre_tech in mitre_techs:
-                tested_techniques[mitre_tech] = tested_techniques.get(mitre_tech, 0) + 1
+        self.logger.info(f"Found {len(tested_techniques)} unique MITRE techniques tested")
 
         # Update coverage status
         for mitre_tech, num_tests in tested_techniques.items():
@@ -222,6 +232,15 @@ class CoverageTracker:
                 'estimated_time_to_full_coverage': self._estimate_time_to_coverage()
             }
         }
+    
+    def get_coverage_report(self) -> Dict[str, Any]:
+        """
+        Alias for generate_coverage_report() for API compatibility.
+
+        Returns:
+            Coverage report dictionary
+        """
+        return self.generate_coverage_report()
 
     def _estimate_time_to_coverage(self) -> str:
         """

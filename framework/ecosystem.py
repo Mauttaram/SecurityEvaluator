@@ -108,11 +108,13 @@ class UnifiedEcosystem:
 
         # 1. Boundary Prober Agents (1-3 agents)
         num_probers = self.config.get('num_boundary_probers', 2)
+        mitre_config = self.config.get('mitre', {})  # Get MITRE config from ecosystem config
         for i in range(num_probers):
             agent = BoundaryProberAgent(
                 agent_id=f"boundary_prober_{i}",
                 knowledge_base=self.knowledge_base,
-                scenario=self.scenario
+                scenario=self.scenario,
+                mitre_config=mitre_config  # Pass MITRE config to agent
             )
             agents.append(agent)
 
@@ -129,7 +131,8 @@ class UnifiedEcosystem:
                 scenario=self.scenario,
                 use_llm=use_agent_llm,
                 llm_client=llm_client,
-                model_router=self.model_router
+                model_router=self.model_router,
+                mitre_config=mitre_config  # Pass MITRE config to exploiter
             )
             agents.append(agent)
 

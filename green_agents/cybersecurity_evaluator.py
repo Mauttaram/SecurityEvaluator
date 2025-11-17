@@ -11,7 +11,7 @@ import argparse
 import logging
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 
 import httpx
@@ -28,7 +28,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from framework.ecosystem import UnifiedEcosystem
 from framework.base import PurpleAgent, SecurityScenario
 from framework.models import Attack, TestResult, DetectionOutcome
-from framework.scenarios import PromptInjectionScenario
+from framework.scenarios import PromptInjectionScenario, ComprehensiveSecurityScenario
 # TODO: Add more attack-type scenarios as we create them:
 # from framework.scenarios import SQLInjectionScenario, CommandInjectionScenario, XSSScenario
 from green_agents.agent_card import cybersecurity_agent_card
@@ -54,11 +54,21 @@ class EvalConfig(BaseModel):
     use_sandbox: bool = Field(default=True, description="Use container isolation (CRITICAL for production)")
     use_cost_optimization: bool = Field(default=True, description="Enable cost optimization")
     use_coverage_tracking: bool = Field(default=True, description="Enable MITRE ATT&CK tracking")
+    
+    # Dual Evaluation Options
+    use_dual_evaluation: bool = Field(default=True, description="Enable dual evaluation (Green + Purple perspectives)")
+    generate_reports: bool = Field(default=True, description="Generate comprehensive markdown and JSON reports")
+    report_dir: str = Field(default="reports", description="Directory for generated reports")
+    report_format: Union[str, List[str]] = Field(default=["markdown", "json"], description="Report formats to generate")
+    
     num_boundary_probers: int = Field(default=2, ge=1, le=5)
     num_exploiters: int = Field(default=3, ge=1, le=5)
     num_mutators: int = Field(default=2, ge=1, le=5)
     num_validators: int = Field(default=1, ge=1, le=3)
     random_seed: Optional[int] = None
+    
+    # MITRE Configuration (from TOML [config.mitre] section)
+    mitre: Optional[Dict[str, Any]] = Field(default=None, description="MITRE ATT&CK/ATLAS configuration")
 
 
 class EvalResponse(BaseModel):
@@ -66,13 +76,14 @@ class EvalResponse(BaseModel):
     status: str
     purple_agent_id: str
     scenario: str
-    metrics: Dict[str, float]
+    metrics: Dict[str, Any]  # Changed from Dict[str, float] to support nested dicts
     evasions_found: int
     total_tests: int
     coverage: Optional[Dict[str, Any]] = None
     cost_usd: float = 0.0
     duration_seconds: float
     timestamp: str
+    report_files: Optional[Dict[str, Any]] = None  # Add report file paths
 
 
 # ============================================================================
@@ -397,6 +408,7 @@ class CyberSecurityEvaluator(GreenAgent):
                     'num_exploiters': config.num_exploiters,
                     'num_mutators': config.num_mutators,
                     'num_validators': config.num_validators,
+                    'mitre': config.mitre,  # Pass MITRE configuration to ecosystem
                 }
             )
 
@@ -423,19 +435,126 @@ class CyberSecurityEvaluator(GreenAgent):
             # Get evasions
             evasions = result.get_evasions()
 
+            # ============================================================================
+            # DUAL EVALUATION INTEGRATION (Green Agent + Purple Agent Perspectives)
+            # ============================================================================
+            
+            dual_result = None
+            report_files = {}
+            
+            # Check if dual evaluation is enabled in config
+            use_dual_evaluation = getattr(config, 'use_dual_evaluation', True)
+            
+            logger.info(f"Dual evaluation enabled: {use_dual_evaluation}")
+            logger.debug(f"Evaluation result: {len(result.attacks)} attacks, {len(result.test_results)} test results")
+            
+            if use_dual_evaluation:
+                await updater.update_status("working", new_agent_text_message("Running dual evaluation (Green + Purple perspectives)..."))
+                
+                try:
+                    from framework.scoring import DualScoringEngine
+                    from framework.reporting import GreenAgentReporter, PurpleAgentReporter
+                    from pathlib import Path
+                    
+                    logger.info(f"Converting evaluation result: {len(result.attacks)} attacks, {len(result.test_results)} test results")
+                    
+                    # Convert EvaluationResult to dual evaluation format
+                    test_results, attacks = self._convert_to_dual_format(result)
+                    logger.debug(f"Conversion complete: {len(attacks)} attacks, {len(test_results)} test results")
+                    
+                    # Run dual evaluation
+                    dual_engine = DualScoringEngine()
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    dual_result = dual_engine.evaluate(
+                        evaluation_id=f"eval_{purple_agent_id}_{timestamp}",
+                        results=test_results,
+                        attacks=attacks,
+                        purple_agent_name=purple_agent_id,
+                        scenario=config.scenario
+                    )
+                    
+                    # Generate reports if enabled
+                    generate_reports = getattr(config, 'generate_reports', True)
+                    
+                    if generate_reports:
+                        await updater.update_status("working", new_agent_text_message("Generating comprehensive reports..."))
+                        
+                        green_reporter = GreenAgentReporter()
+                        purple_reporter = PurpleAgentReporter()
+                        
+                        report_dir = Path(getattr(config, 'report_dir', 'reports'))
+                        report_dir.mkdir(exist_ok=True)
+                        
+                        report_format = getattr(config, 'report_format', ['markdown', 'json'])
+                        if isinstance(report_format, str):
+                            report_format = [report_format]
+                        
+                        # Generate markdown reports
+                        if 'markdown' in report_format:
+                            green_path = report_dir / f"GREEN_AGENT_{purple_agent_id}_{timestamp}.md"
+                            purple_path = report_dir / f"PURPLE_AGENT_{purple_agent_id}_{timestamp}.md"
+                            
+                            green_path.write_text(green_reporter.generate_markdown_report(dual_result))
+                            purple_path.write_text(purple_reporter.generate_markdown_report(dual_result))
+                            
+                            report_files['green_markdown'] = str(green_path)
+                            report_files['purple_markdown'] = str(purple_path)
+                            
+                            logger.info(f"Reports saved: {green_path.name}, {purple_path.name}")
+                        
+                        # Export JSON
+                        if 'json' in report_format:
+                            json_exports = dual_engine.export_dual_reports(dual_result, str(report_dir))
+                            report_files['json_exports'] = json_exports
+                            logger.info(f"JSON exports saved to {report_dir}")
+                    
+                    logger.info(f"Dual Evaluation Complete:")
+                    logger.info(f"  Green Agent Score: {dual_result.green_agent_metrics.competition_score:.1f}/100 ({dual_result.green_agent_metrics.grade})")
+                    logger.info(f"  Purple Agent Security: {dual_result.purple_agent_assessment.security_score:.1f}/100 ({dual_result.purple_agent_assessment.risk_level})")
+                    logger.info(f"  Vulnerabilities Found: {dual_result.purple_agent_assessment.total_vulnerabilities}")
+                    
+                except Exception as e:
+                    import traceback
+                    
+                    logger.error(f"Dual evaluation failed (continuing with standard metrics): {e}")
+                    logger.error(f"Full traceback:\n{traceback.format_exc()}")
+                    dual_result = None
+
             # Prepare response
+            metrics = {
+                "f1_score": result.metrics.f1_score,
+                "precision": result.metrics.precision,
+                "recall": result.metrics.recall,
+                "accuracy": result.metrics.accuracy,
+                "false_positive_rate": result.metrics.false_positive_rate,
+                "false_negative_rate": result.metrics.false_negative_rate,
+            }
+            
+            # Add dual evaluation metrics if available
+            if dual_result:
+                metrics["green_agent"] = {
+                    "competition_score": dual_result.green_agent_metrics.competition_score,
+                    "grade": dual_result.green_agent_metrics.grade,
+                    "f1_score": dual_result.green_agent_metrics.f1_score,
+                    "precision": dual_result.green_agent_metrics.precision,
+                    "recall": dual_result.green_agent_metrics.recall
+                }
+                metrics["purple_agent"] = {
+                    "security_score": dual_result.purple_agent_assessment.security_score,
+                    "risk_level": dual_result.purple_agent_assessment.risk_level,
+                    "vulnerabilities": dual_result.purple_agent_assessment.total_vulnerabilities,
+                    "critical_count": dual_result.purple_agent_assessment.critical_count,
+                    "high_count": dual_result.purple_agent_assessment.high_count,
+                    "medium_count": dual_result.purple_agent_assessment.medium_count,
+                    "low_count": dual_result.purple_agent_assessment.low_count
+                }
+            
             response = EvalResponse(
                 status="completed",
                 purple_agent_id=purple_agent_id,
                 scenario=config.scenario,
-                metrics={
-                    "f1_score": result.metrics.f1_score,
-                    "precision": result.metrics.precision,
-                    "recall": result.metrics.recall,
-                    "accuracy": result.metrics.accuracy,
-                    "false_positive_rate": result.metrics.false_positive_rate,
-                    "false_negative_rate": result.metrics.false_negative_rate,
-                },
+                metrics=metrics,
                 evasions_found=len(evasions),
                 total_tests=result.total_attacks_tested,
                 coverage=coverage_report,
@@ -443,10 +562,22 @@ class CyberSecurityEvaluator(GreenAgent):
                 duration_seconds=duration,
                 timestamp=datetime.now().isoformat()
             )
+            
+            # Add report files to response if generated
+            if report_files:
+                response.report_files = report_files
 
             # Update task as completed
+            completion_msg = f"Evaluation completed. F1: {result.metrics.f1_score:.3f}"
+            if dual_result:
+                completion_msg += f"\n\n🎯 Green Agent: {dual_result.green_agent_metrics.competition_score:.1f}/100 ({dual_result.green_agent_metrics.grade})"
+                completion_msg += f"\n🛡️  Purple Agent: {dual_result.purple_agent_assessment.security_score:.1f}/100 ({dual_result.purple_agent_assessment.risk_level})"
+                completion_msg += f"\n⚠️  Vulnerabilities: {dual_result.purple_agent_assessment.total_vulnerabilities}"
+                if report_files:
+                    completion_msg += f"\n📄 Reports saved to: {report_files.get('green_markdown', 'reports/')}"
+            
             result_message = new_agent_text_message(
-                f"Evaluation completed. F1: {result.metrics.f1_score:.3f}\n\n{response.model_dump_json(indent=2)}"
+                f"{completion_msg}\n\n{response.model_dump_json(indent=2)}"
             )
             await updater.complete(result_message)
 
@@ -478,6 +609,138 @@ class CyberSecurityEvaluator(GreenAgent):
                 timestamp=datetime.now().isoformat()
             )
 
+    def _convert_to_dual_format(self, result) -> tuple:
+        """
+        Convert EvaluationResult to dual evaluation format.
+        
+        Args:
+            result: EvaluationResult from ecosystem.evaluate()
+            
+        Returns:
+            Tuple of (test_results, attacks) for dual evaluation
+        """
+        from scenarios.security.models import (
+            DetectionOutcome as SecurityDetectionOutcome, 
+            TestResult as SecurityTestResult,
+            PurpleAgentResponse
+        )
+        from framework.models import Attack, Severity, TestOutcome
+        
+        test_results = []
+        attacks_list = []
+        
+        logger.info(f"Converting evaluation result with {len(result.attacks)} attacks and {len(result.test_results)} test results")
+        
+        # Convert attacks
+        for attack_obj in result.attacks:
+            # Determine severity
+            severity = Severity.MEDIUM  # Default
+            if hasattr(attack_obj, 'severity'):
+                if isinstance(attack_obj.severity, Severity):
+                    severity = attack_obj.severity
+                elif isinstance(attack_obj.severity, str):
+                    severity_map = {'critical': Severity.CRITICAL, 'high': Severity.HIGH, 'medium': Severity.MEDIUM, 'low': Severity.LOW}
+                    severity = severity_map.get(attack_obj.severity.lower(), Severity.MEDIUM)
+            
+            attacks_list.append(attack_obj)  # Use attack objects directly
+        
+        # Convert test results
+        for test_result_obj in result.test_results:
+            # Map TestOutcome to DetectionOutcome
+            outcome_map = {
+                TestOutcome.TRUE_POSITIVE: SecurityDetectionOutcome.TRUE_POSITIVE,
+                TestOutcome.FALSE_POSITIVE: SecurityDetectionOutcome.FALSE_POSITIVE,
+                TestOutcome.TRUE_NEGATIVE: SecurityDetectionOutcome.TRUE_NEGATIVE,
+                TestOutcome.FALSE_NEGATIVE: SecurityDetectionOutcome.FALSE_NEGATIVE,
+            }
+            
+            # Get the outcome
+            outcome = test_result_obj.outcome
+            if outcome not in [SecurityDetectionOutcome.TRUE_POSITIVE, SecurityDetectionOutcome.FALSE_POSITIVE,
+                             SecurityDetectionOutcome.TRUE_NEGATIVE, SecurityDetectionOutcome.FALSE_NEGATIVE]:
+                # Need to map from TestOutcome to SecurityDetectionOutcome
+                outcome = outcome_map.get(outcome, SecurityDetectionOutcome.TRUE_POSITIVE)
+            
+            # Get the attack_id to link test result to attack object
+            attack_id = getattr(test_result_obj, 'attack_id', None) or getattr(test_result_obj, 'result_id', f"test_{len(test_results)}")
+            
+            # Find the corresponding attack to get ground truth (is_malicious)
+            attack = next((a for a in attacks_list if a.attack_id == attack_id), None)
+            ground_truth = attack.is_malicious if attack else False
+            
+            # Determine prediction from outcome (how purple agent performed)
+            if outcome in [SecurityDetectionOutcome.TRUE_POSITIVE, SecurityDetectionOutcome.FALSE_POSITIVE]:
+                predicted = True  # Purple agent detected/blocked it
+            else:
+                predicted = False  # Purple agent did not detect it
+            
+            # Extract purple agent response from original TestResult metadata
+            original_metadata = getattr(test_result_obj, 'metadata', {}) or {}
+            purple_agent_response_text = (
+                original_metadata.get('purple_agent_response') or
+                original_metadata.get('agent_response') or
+                original_metadata.get('response') or
+                None
+            )
+            
+            # Create PurpleAgentResponse object if we have response data
+            purple_agent_response_obj = None
+            if purple_agent_response_text:
+                try:
+                    # Try to parse as JSON if it's a string
+                    if isinstance(purple_agent_response_text, str):
+                        import json
+                        try:
+                            response_data = json.loads(purple_agent_response_text)
+                            purple_agent_response_obj = PurpleAgentResponse(
+                                success=response_data.get('success', False),
+                                action_taken=response_data.get('action_taken', ''),
+                                details=response_data.get('details', {}),
+                                state_changes=response_data.get('state_changes', {}),
+                                metadata=response_data.get('metadata', {})
+                            )
+                        except (json.JSONDecodeError, TypeError):
+                            # If not JSON, create a simple response object
+                            purple_agent_response_obj = PurpleAgentResponse(
+                                success=False,
+                                action_taken=purple_agent_response_text[:200],  # Truncate long responses
+                                details={'raw_response': purple_agent_response_text},
+                                state_changes={},
+                                metadata={}
+                            )
+                    elif isinstance(purple_agent_response_text, dict):
+                        # Already a dict, create PurpleAgentResponse directly
+                        purple_agent_response_obj = PurpleAgentResponse(
+                            success=purple_agent_response_text.get('success', False),
+                            action_taken=purple_agent_response_text.get('action_taken', ''),
+                            details=purple_agent_response_text.get('details', {}),
+                            state_changes=purple_agent_response_text.get('state_changes', {}),
+                            metadata=purple_agent_response_text.get('metadata', {})
+                        )
+                except Exception as e:
+                    logger.warning(f"Could not create PurpleAgentResponse object: {e}")
+                    purple_agent_response_obj = None
+            
+            test_result = SecurityTestResult(
+                test_case_id=attack_id,  # Use attack_id so DualScoringEngine can match
+                ground_truth=ground_truth,  # From attack.is_malicious
+                predicted=predicted,  # From outcome (purple agent's performance)
+                outcome=outcome,
+                category=attack_id.split('_')[0] if attack else 'unknown',
+                language='python',
+                confidence=getattr(test_result_obj, 'confidence', 0.5),
+                execution_time_ms=getattr(test_result_obj, 'latency_ms', 0),
+                purple_agent_response=purple_agent_response_obj
+            )
+            test_results.append(test_result)
+        
+        logger.info(f"Converted {len(test_results)} test results and {len(attacks_list)} attacks for dual evaluation")
+        
+        if not test_results or not attacks_list:
+            raise ValueError(f"Insufficient data for dual evaluation: {len(test_results)} results, {len(attacks_list)} attacks")
+        
+        return test_results, attacks_list
+
     def _load_scenario(self, scenario_name: str) -> SecurityScenario:
         """
         Load scenario by name.
@@ -490,6 +753,7 @@ class CyberSecurityEvaluator(GreenAgent):
         """
         scenario_map = {
             'prompt_injection': PromptInjectionScenario,
+            'comprehensive_security': ComprehensiveSecurityScenario,
             # TODO: Add more attack-type scenarios as we create them:
             # 'sql_injection': SQLInjectionScenario,
             # 'command_injection': CommandInjectionScenario,

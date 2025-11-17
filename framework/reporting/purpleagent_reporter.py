@@ -93,6 +93,52 @@ class PurpleAgentReporter:
         
         report.append("---\n\n")
         
+        # MITRE Technique Coverage
+        mitre_techniques = {}
+        atlas_count = 0
+        attack_count = 0
+        
+        for vuln in assessment.vulnerabilities:
+            mitre_id = vuln.metadata.get('mitre_technique_id')
+            if mitre_id:
+                mitre_name = vuln.metadata.get('mitre_technique_name', 'Unknown')
+                if mitre_id not in mitre_techniques:
+                    mitre_techniques[mitre_id] = {
+                        'name': mitre_name,
+                        'count': 0,
+                        'is_atlas': mitre_id.startswith('AML.')
+                    }
+                mitre_techniques[mitre_id]['count'] += 1
+                
+                if mitre_id.startswith('AML.'):
+                    atlas_count += 1
+                else:
+                    attack_count += 1
+        
+        if mitre_techniques:
+            report.append("## 🎯 MITRE Technique Coverage\n\n")
+            report.append(f"**Total MITRE Techniques Used:** {len(mitre_techniques)}\n")
+            report.append(f"- ATLAS (AI/ML Security): {len([t for t in mitre_techniques.values() if t['is_atlas']])} techniques\n")
+            report.append(f"- ATT&CK (General): {len([t for t in mitre_techniques.values() if not t['is_atlas']])} techniques\n\n")
+            
+            report.append(f"**Total Vulnerabilities by Source:**\n")
+            if atlas_count > 0:
+                report.append(f"- ATLAS: {atlas_count} vulnerabilities\n")
+            if attack_count > 0:
+                report.append(f"- ATT&CK: {attack_count} vulnerabilities\n")
+            report.append("\n")
+            
+            # List top techniques
+            sorted_techniques = sorted(mitre_techniques.items(), key=lambda x: x[1]['count'], reverse=True)
+            report.append("### Top MITRE Techniques Used\n\n")
+            report.append("| Technique ID | Technique Name | Vulnerabilities | Type |\n")
+            report.append("|--------------|----------------|-----------------|------|\n")
+            for tech_id, tech_info in sorted_techniques[:10]:
+                tech_type = "ATLAS" if tech_info['is_atlas'] else "ATT&CK"
+                report.append(f"| {tech_id} | {tech_info['name'][:50]} | {tech_info['count']} | {tech_type} |\n")
+            report.append("\n")
+            report.append("---\n\n")
+        
         # Top Vulnerabilities
         if assessment.vulnerabilities:
             report.append(f"## 🔍 Top {min(top_n_vulnerabilities, len(assessment.vulnerabilities))} Critical Vulnerabilities\n\n")
@@ -100,10 +146,137 @@ class PurpleAgentReporter:
             sorted_vulns = sorted(assessment.vulnerabilities, key=lambda v: v.cvss_score, reverse=True)
             for i, vuln in enumerate(sorted_vulns[:top_n_vulnerabilities], 1):
                 report.append(f"### {i}. {vuln.vulnerability_id}: {vuln.cwe_name}\n\n")
-                report.append(f"**CVSS Score:** {vuln.cvss_score} ({vuln.severity})\n\n")
+                
+                # MITRE Technique Information (if available)
+                mitre_id = vuln.metadata.get('mitre_technique_id')
+                mitre_name = vuln.metadata.get('mitre_technique_name')
+                if mitre_id:
+                    # Determine if ATLAS or ATT&CK based on ID format
+                    if mitre_id.startswith('AML.'):
+                        mitre_url = f"https://atlas.mitre.org/techniques/{mitre_id}"
+                        mitre_type = "ATLAS (AI/ML)"
+                    else:
+                        mitre_url = f"https://attack.mitre.org/techniques/{mitre_id.replace('.', '/')}"
+                        mitre_type = "ATT&CK"
+                    report.append(f"**MITRE {mitre_type}:** [{mitre_id}]({mitre_url}) - {mitre_name}\n\n")
+                    
+                    # Full MITRE Details
+                    mitre_tactics = vuln.metadata.get('mitre_tactics', [])
+                    mitre_platforms = vuln.metadata.get('mitre_platforms', [])
+                    mitre_source = vuln.metadata.get('mitre_source', 'unknown')
+                    
+                    if mitre_tactics or mitre_platforms:
+                        report.append("**MITRE Technique Details:**\n")
+                        if mitre_tactics:
+                            tactics_str = ", ".join(mitre_tactics)
+                            report.append(f"- **Tactics:** {tactics_str}\n")
+                        if mitre_platforms:
+                            platforms_str = ", ".join(mitre_platforms)
+                            report.append(f"- **Platforms:** {platforms_str}\n")
+                        report.append(f"- **Source:** {mitre_source}\n\n")
+                
+                report.append(f"**CVSS Score:** {vuln.cvss_score:.1f} ({vuln.severity})\n\n")
                 report.append(f"**CWE:** [{vuln.cwe_id}](https://cwe.mitre.org/data/definitions/{vuln.cwe_id.replace('CWE-', '')}.html) - {vuln.cwe_name}\n\n")
+                
+                # Additional Attack Details
+                mitre_category = vuln.metadata.get('mitre_category') or vuln.metadata.get('category')
+                mitre_platform = vuln.metadata.get('mitre_platform') or vuln.metadata.get('platform')
+                generation_source = vuln.metadata.get('generation_source')
+                
+                if mitre_category or mitre_platform or generation_source:
+                    report.append("**Attack Details:**\n")
+                    if mitre_category:
+                        report.append(f"- Category: {mitre_category}\n")
+                    if mitre_platform:
+                        report.append(f"- Platform: {mitre_platform}\n")
+                    if generation_source:
+                        report.append(f"- Generation Source: {generation_source}\n")
+                    report.append("\n")
+                
                 report.append(f"**Description:**\n{vuln.description}\n\n")
-                report.append(f"**Proof of Concept:**\n```\n{vuln.proof_of_concept}\n```\n\n")
+                
+                # Enhanced Proof of Concept with structured sections
+                report.append("**Proof of Concept:**\n\n")
+                
+                # Extract payload from proof_of_concept or metadata
+                payload = None
+                agent_response = None
+                
+                # Try to extract from metadata first (more reliable)
+                if 'attack_payload' in vuln.metadata:
+                    payload = vuln.metadata['attack_payload']
+                elif 'payload' in vuln.metadata:
+                    payload = vuln.metadata['payload']
+                else:
+                    # Parse from proof_of_concept string
+                    poc_lines = vuln.proof_of_concept.split('\n')
+                    for line in poc_lines:
+                        if line.startswith('Payload:'):
+                            payload = line.replace('Payload:', '').strip()
+                            if payload.endswith('... [truncated]'):
+                                payload = payload.replace('... [truncated]', '')
+                
+                # Extract agent response - check multiple possible keys
+                agent_response = None
+                if 'agent_response' in vuln.metadata and vuln.metadata['agent_response']:
+                    agent_response = vuln.metadata['agent_response']
+                elif 'purple_agent_response' in vuln.metadata and vuln.metadata['purple_agent_response']:
+                    agent_response = vuln.metadata['purple_agent_response']
+                elif 'response' in vuln.metadata and vuln.metadata['response']:
+                    agent_response = vuln.metadata['response']
+                else:
+                    # Parse from proof_of_concept as fallback
+                    poc_lines = vuln.proof_of_concept.split('\n')
+                    for line in poc_lines:
+                        if 'Purple Agent Response:' in line or 'Response:' in line:
+                            agent_response = line.split(':', 1)[1].strip() if ':' in line else None
+                            if agent_response and agent_response.endswith('... [truncated]'):
+                                agent_response = agent_response.replace('... [truncated]', '')
+                            break
+                
+                # Convert dict response to formatted string if needed
+                if agent_response:
+                    if isinstance(agent_response, dict):
+                        import json
+                        agent_response = json.dumps(agent_response, indent=2)
+                    elif not isinstance(agent_response, str):
+                        # Convert other types to string
+                        agent_response = str(agent_response)
+                
+                # Display payload
+                if payload:
+                    report.append("**Attack Payload:**\n")
+                    report.append("```\n")
+                    # Truncate very long payloads but show more than before
+                    if len(str(payload)) > 1000:
+                        report.append(f"{str(payload)[:1000]}\n... [truncated, full length: {len(str(payload))} chars]\n")
+                    else:
+                        report.append(f"{payload}\n")
+                    report.append("```\n\n")
+                
+                # Display agent response
+                if agent_response:
+                    report.append("**Purple Agent Response:**\n")
+                    report.append("```\n")
+                    if len(str(agent_response)) > 1000:
+                        report.append(f"{str(agent_response)[:1000]}\n... [truncated, full length: {len(str(agent_response))} chars]\n")
+                    else:
+                        report.append(f"{agent_response}\n")
+                    report.append("```\n\n")
+                else:
+                    # Fallback: show full proof_of_concept if we couldn't parse it
+                    report.append("```\n")
+                    report.append(f"{vuln.proof_of_concept}\n")
+                    report.append("```\n\n")
+                
+                # Detection details
+                detected = vuln.metadata.get('detected', False)
+                confidence = vuln.metadata.get('confidence', 0.0)
+                report.append("**Detection Status:**\n")
+                report.append(f"- Detected: {detected}\n")
+                report.append(f"- Confidence: {confidence:.2f}\n")
+                report.append(f"- Outcome: Attack succeeded (vulnerability exploited)\n\n")
+                
                 report.append(f"**Remediation:**\n{vuln.remediation}\n\n")
                 report.append("---\n\n")
         

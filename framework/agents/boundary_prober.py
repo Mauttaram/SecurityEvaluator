@@ -68,6 +68,9 @@ class BoundaryProberAgent(UnifiedAgent):
         self.selected_ttps: List[MITRETechnique] = []
         self._profiled = False  # Track if profiling has been done
         
+        self.logger.info(f"BoundaryProber: MITRE config = {self.mitre_config}")
+        self.logger.info(f"BoundaryProber: MITRE_AVAILABLE = {MITRE_AVAILABLE}")
+        
         if MITRE_AVAILABLE and self.mitre_config.get('enabled', True):
             try:
                 self.profiler = AgentProfiler(
@@ -79,12 +82,16 @@ class BoundaryProberAgent(UnifiedAgent):
                     auto_download=self.mitre_config.get('auto_download', True),
                     use_bundled_fallback=self.mitre_config.get('use_bundled_fallback', True)
                 )
-                self.logger.info("MITRE components initialized successfully")
+                self.logger.info("✅ MITRE components initialized successfully")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize MITRE components: {e}")
                 self.profiler = None
                 self.ttp_selector = None
         else:
+            if not MITRE_AVAILABLE:
+                self.logger.warning("MITRE components not available (import failed)")
+            elif not self.mitre_config.get('enabled', True):
+                self.logger.warning(f"MITRE disabled in config: {self.mitre_config}")
             self.profiler = None
             self.ttp_selector = None
 
@@ -111,7 +118,12 @@ class BoundaryProberAgent(UnifiedAgent):
 
         # MITRE Enhancement: Profile agent and select TTPs (once per agent)
         if not self._profiled and self.profiler and self.ttp_selector:
+            # Get purple agent identifier
+            purple_agent_id = getattr(purple_agent, 'agent_id', getattr(purple_agent, 'endpoint', 'unknown_agent'))
+            self.logger.info(f"🎯 Starting MITRE profiling for {purple_agent_id}")
             self._profile_and_select_ttps(purple_agent)
+        else:
+            self.logger.warning(f"⚠️ Skipping profiling - _profiled={self._profiled}, profiler={self.profiler is not None}, ttp_selector={self.ttp_selector is not None}")
 
         # Execute probing
         boundaries = self._probe_boundaries(purple_agent, technique, num_probes)
@@ -272,17 +284,40 @@ class BoundaryProberAgent(UnifiedAgent):
 
         # Get baseline samples
         baseline_samples = self._get_baseline_samples(technique)
+        
+        # Find matching MITRE TTP for this technique
+        matching_ttp = self._find_matching_ttp(technique)
 
         # Test baseline samples
         results = []
         for sample in baseline_samples[:num_probes]:
+            # Build metadata with MITRE info if available
+            metadata = {
+                'probe_type': 'baseline',
+                'expected_detection': sample.get('expected_detection', True)
+            }
+            
+            # Add MITRE metadata if we have a matching TTP
+            if matching_ttp:
+                self.logger.info(f"✅ Found matching TTP: {matching_ttp.technique_id} - {matching_ttp.name}")
+                metadata.update({
+                    'mitre_technique_id': matching_ttp.technique_id,
+                    'mitre_technique_name': matching_ttp.name,
+                    'category': matching_ttp.tactics[0] if matching_ttp.tactics else 'reconnaissance',
+                    'platform': matching_ttp.platforms[0] if matching_ttp.platforms else 'multi-platform',
+                    'generation_source': 'boundary_probe',
+                    'severity': 'medium',  # Probes are exploratory, not high severity
+                    'mitre_tactics': matching_ttp.tactics,
+                    'mitre_platforms': matching_ttp.platforms,
+                    'mitre_source': matching_ttp.source.value
+                })
+            else:
+                self.logger.warning(f"❌ No matching TTP found for technique '{technique}'! selected_ttps count: {len(self.selected_ttps)}")
+                
             attack = self.scenario.create_attack(
                 technique=technique,
                 payload=sample['payload'],
-                metadata={
-                    'probe_type': 'baseline',
-                    'expected_detection': sample.get('expected_detection', True)
-                }
+                metadata=metadata
             )
             attack.created_by = self.agent_id
 
@@ -300,6 +335,51 @@ class BoundaryProberAgent(UnifiedAgent):
             'total_probes': len(results),
             'detection_rate': sum(1 for r in results if r['result'].detected) / len(results) if results else 0.0
         }
+
+    def _find_matching_ttp(self, technique: str) -> Optional[MITRETechnique]:
+        """
+        Find MITRE TTP matching the scenario technique.
+        
+        Args:
+            technique: Scenario technique name (e.g., 'jailbreak', 'prompt_injection')
+            
+        Returns:
+            Matching MITRETechnique or None
+        """
+        if not self.selected_ttps:
+            return None
+            
+        # Direct mapping of common scenario techniques to MITRE tactics/categories
+        technique_mapping = {
+            'jailbreak': ['initial-access', 'privilege-escalation', 'defense-evasion'],
+            'prompt_injection': ['initial-access', 'execution'],
+            'data_exfiltration': ['exfiltration', 'collection'],
+            'command_injection': ['execution', 'privilege-escalation'],
+            'privilege_escalation': ['privilege-escalation'],
+            'defense_evasion': ['defense-evasion'],
+            'persistence': ['persistence'],
+            'code_execution': ['execution'],
+            'model_manipulation': ['impact', 'execution'],
+            'adversarial_examples': ['defense-evasion', 'impact']
+        }
+        
+        # Get relevant tactics for this technique
+        relevant_tactics = technique_mapping.get(technique.lower(), [])
+        
+        # Try to find TTP matching the technique name or tactics
+        for ttp in self.selected_ttps:
+            # Direct name match
+            if technique.lower() in ttp.name.lower():
+                return ttp
+            
+            # Check if any of the TTP's tactics match our technique
+            if relevant_tactics:
+                ttp_tactics_lower = [t.lower() for t in ttp.tactics]
+                if any(tactic in ttp_tactics_lower for tactic in relevant_tactics):
+                    return ttp
+        
+        # If no match, return first TTP as fallback (better than nothing)
+        return self.selected_ttps[0] if self.selected_ttps else None
 
     def _get_baseline_samples(self, technique: str) -> List[Dict[str, Any]]:
         """
