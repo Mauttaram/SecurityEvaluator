@@ -244,4 +244,100 @@ CMD ["python", "-m", "purple_debater"]
 
 ---
 
+The **Purple Debater Agent** described in the user story and specification for the UC Berkeley AgentBeats competition presents several security vulnerabilities and risks, mostly associated with its architecture, data flow, protocol exposure, and the nature of AI-driven debate systems. Here’s an organized breakdown of potential security vulnerabilities relevant to this use case:
+
+---
+
+## 1. **Input Handling and Injection Risks**
+- **A2A JSON Input Handling**: If user-supplied debate inputs are not rigorously validated and sanitized, there’s risk of:
+  - **Injection Attacks:** Maliciously crafted JSON could exploit parsing vulnerabilities (e.g., prototype pollution, code or command injection in underlying frameworks).
+  - **Denial of Service (DoS):** Large, malformed, or recursive payloads could degrade service or cause application failure.
+  - **Prompt Injection:** Debater models can be manipulated by cleverly worded prompts to output undesirable or unsafe content.
+
+---
+
+## 2. **Streaming & Output Risks**
+- **Progressive/Streaming Output**: If message chunks are not validated before release:
+  - **Information Leakage:** Partial responses might inadvertently expose internal states, error traces, or debugging data.
+  - **Revealing Sensitive Metadata:** Structuring responses with source lists or confidence scores can be abused to infer agent operation, enabling model exploitation or adversarial probing.
+
+---
+
+## 3. **AgentCard Endpoint Exposure**
+- **Public Metadata (`/.well-known/agent-card.json`)**:
+  - **Reconnaissance Vector:** Discloses agent capabilities and skills, aiding attackers in crafting targeted payloads or social engineering attacks.
+  - **Potential Disclosure of Operating URLs:** Reveals internal network architecture or endpoints if not properly limited.
+
+---
+
+## 4. **Error Reporting**
+- **Structured Error Messages**: Overly detailed errors (stack traces, config values, etc.) could:
+  - **Facilitate Exploitation:** Give clues to attackers about internal logic or software versions.
+  - **Expose Private Data:** If error handling isn’t strictly controlled, sensitive request fields may leak.
+
+---
+
+## 5. **AI Model Toxicity, Safety and Ethics**
+- **Malicious Argument Generation**:
+  - **Unverifiable Claims & Misinformation:** Despite NFR-3, adversarial inputs may trick the agent into generating unethical or unsafe content.
+  - **Prompt Leaking:** Generated responses could include sensitive instructions if the model is not fully controlled.
+- **Safety Filter Failure**:
+  - If the safety filter is bypassed or malfunctioning, the agent could output inflammatory, toxic, or non-compliant content.
+
+---
+
+## 6. **Authentication & Protocol Risks**
+- **A2A Protocol Abuse**:
+  - **Spoofed Requests:** Without request attribution and verification, attackers may impersonate legitimate agents (e.g., the Green Evaluator).
+  - **Replay Attacks:** Previously valid debate requests could be resent, causing repeated, possibly undesirable argument generation.
+  - **DoS via Protocol:** Excessive requests, cancels, or invalid operations could disrupt agent operation.
+
+---
+
+## 7. **Deployment & Runtime Risks**
+- **Exposed Port (7001)**:
+  - **Open Attack Surface:** If deployed without proper firewalls or authentication, may be subject to external probing, port scanning, or exploitation.
+- **Dependencies**:
+  - **Unpatched Libraries:** Vulnerabilities in `a2a-sdk`, `uvicorn`, `pydantic` or system Python can be exploited if not regularly updated.
+- **Docker Image Risks**:
+  - **Privileged Containers:** If container security best practices aren’t followed, attackers could escalate privileges or escape the container.
+
+---
+
+## 8. **Logging and Metrics**
+- **Sensitive Data in Logs**:
+  - If JSON logs include debate topics, stances, arguments, or internal metrics, attackers with log access could glean sensitive info.
+- **Metrics Endpoint (`/metrics`)**:
+  - Exposing internal performance, usage, or error rates publicly can aid attackers in timing or load-based exploits.
+
+---
+
+## 9. **Reproducibility and Determinism**
+- **Seed Disclosure**:
+  - Deterministic output seeds, if visible or guessable, may allow attackers to reliably predict or manipulate agent responses.
+
+---
+
+## 10. **Future Enhancements**
+- **Multi-Agent Interactions:** Team debates and rebuttal chains expand trust boundaries and protocol complexity, introducing new surface for spoofing, Sybil attacks, or unauthorized coordination.
+
+---
+
+# **Mitigation Suggestions**
+- Strict input/output validation (reject oversized or malformed JSON).
+- Limit information in error messages and logs.
+- Authenticate and authorize all protocol endpoints; implement strict sender verification.
+- Monitor and rate-limit requests to mitigate DoS.
+- Keep dependencies updated and monitor for CVEs.
+- Harden container, restrict network access, implement firewall rules.
+- Regularly audit AI model outputs and retrain safety filter.
+- Ensure reproducibility seed is kept secret or regularly changed.
+- Secure metrics and logging endpoints; don’t expose public data.
+
+---
+
+**Summary:**  
+The Purple Debater Agent’s use case is exposed to security vulnerabilities typical of API-based AI systems: injection attacks, output validation failures, protocol spoofing, information leakage, unfiltered AI output, endpoint exposure, and unsafe container or dependency management. Security hardening is essential at every layer—from input, output, and protocol design, to runtime deployment and logging.
+
+
 **© 2025 Purple Agent Initiative — UC Berkeley AgentBeats Entry**
