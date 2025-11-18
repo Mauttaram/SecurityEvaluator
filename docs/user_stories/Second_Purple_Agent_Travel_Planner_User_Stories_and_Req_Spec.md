@@ -231,5 +231,96 @@ CMD ["python", "-m", "purple_travel_agent"]
 - Support multilingual generation (English, German, Japanese).  
 
 ---
+The **Purple Travel Agent** use case presents several possible security vulnerabilities related to its architecture, data handling, interactions, and deployment. Here’s an analysis tailored to the described system:
+
+---
+
+## **Security Vulnerabilities Analysis**
+
+### **1. Input Validation and Injection Risks**
+- **A2A Input Handling (FR-1):**
+  - Accepting A2A JSON requests means user-controlled data enters the system.
+  - Risks: Malformed JSON, injection attacks (e.g., code injection if data is executed or used unsafely).
+  - Mitigation: Strict schema validation (using Pydantic), sanitization, and rejecting unexpected fields.
+
+### **2. Authentication and Authorization**
+- **Agent-to-Agent Protocol (A2A):**
+  - If endpoints (e.g., `/`, `/.well-known/agent-card.json`) are open, attackers could send unauthorized, malicious requests.
+  - Risk: Impersonation of Green Evaluator Agent, denial of service, or unauthorized itinerary generation.
+  - Mitigation: Authentication mechanisms (e.g., API keys, mutual TLS, signed requests), verification of sender identity.
+
+### **3. Information Disclosure**
+- **Streaming and Error Responses (FR-7, FR-10):**
+  - Detailed error messages can leak internal logic, stack traces, or sensitive agent information.
+  - Unfiltered results could disclose data about users or system internals.
+  - Mitigation: Generic error messages, limit information in logs and outputs.
+
+### **4. Denial of Service (DoS)**
+- **High Latency or Unfiltered Requests (NFR-1):**
+  - If inputs are not rate-limited or if malicious actors flood the endpoint, the agent could be overwhelmed, causing slowdowns or crashes.
+  - Mitigation: Rate limiting, request size limits, timeouts, robust exception handling.
+
+### **5. Unsafe External API Calls**
+- **Future: Real-time API integrations (weather, transport, etc.):**
+  - If the agent consumes external APIs, insecure connections or lack of verification could lead to supply chain attacks or compromised data.
+  - Mitigation: Use HTTPS, validate external data, whitelist safe APIs.
+
+### **6. Data Integrity and Tampering**
+- **Deterministic Planning & Seeds (NFR-2):**
+  - If seed values or configs are exposed or modifiable, attackers could force predictable or manipulated outputs.
+  - Mitigation: Protect configuration files and environment variables, checks on modification.
+
+### **7. Docker and Deployment**
+- **Dockerfile Use & Image Security:**
+  - Using public base images or exposing sensitive directories can lead to vulnerabilities (e.g., privilege escalation, vulnerable libraries).
+  - Mitigation: Use trusted base images, scan for vulnerabilities, minimize attack surface (slim images, non-root user).
+
+### **8. Logging and Metrics Exposure**
+- **Structured Logs and `/metrics` Endpoint:**
+  - If logs or monitoring endpoints are exposed, they may reveal sensitive request data or system states.
+  - Mitigation: Access controls, avoid logging sensitive data, restrict `/metrics` access.
+
+### **9. Protocol Compliance and Insecure Schemas**
+- **A2A Protocol Requirements (NFR-5):**
+  - Failure to validate schema fully could allow protocol abuse or exploitation.
+  - Mitigation: Adhere strictly to schema validations at every input point.
+
+### **10. Speculative or Fabricated Recommendations**
+- **Safety Layer (NFR-8):**
+  - If the safety layer is bypassed, the system could make unsafe, speculative travel recommendations.
+  - Risk: Users may act on harmful, incorrect advice.
+  - Mitigation: Regular safety layer audits, validate sources for planning.
+
+---
+
+## **Summary Table**
+
+| Vulnerability                      | Risk Area                        | Example |
+|-------------------------------------|----------------------------------|---------|
+| Input Validation / Injection        | A2A JSON requests                | Code/command injection via input |
+| Authentication / Authorization      | Open endpoints                   | Impersonation or unauthorized access |
+| Information Disclosure              | Error streaming/logging          | Revealed stack trace in error |
+| Denial of Service                   | Unfiltered throughput            | Flooding request queue |
+| Unsafe External Calls               | Future API integrations          | Supply-chain attack via third-party API |
+| Data Integrity/Tampering            | Output determinism configs       | Predictable, manipulated results |
+| Insecure Docker/Deployment          | Container/image vulnerabilities  | Privilege escalation via Docker misconfig |
+| Logging/Metrics Exposure            | Monitoring endpoints/log files   | Sensitive data exposed to network |
+| Protocol Non-compliance             | Schema/endpoint handling         | Unexpected fields causing failures |
+| Unsafe Reasoning/Suggestions        | Safety bypass                    | Recommendations to travel in restricted areas |
+
+---
+
+## **Best Practices for Mitigation**
+- Enforce input validation and sanitation.
+- Implement authentication and authorization for all endpoints.
+- Limit error message detail and access to logs/metrics.
+- Use rate limiting, timeouts, and resource constraints.
+- Secure configuration, environment, and Docker containers.
+- Audit safety layers and recommendation logic regularly.
+- Monitor and patch external library and API dependencies.
+
+---
+
+**A practical security review for this agent should also include penetration testing, regular dependency scanning, and protocol compliance audits.**
 
 **© 2025 Purple Agent Initiative — UC Berkeley AgentBeats Entry**
