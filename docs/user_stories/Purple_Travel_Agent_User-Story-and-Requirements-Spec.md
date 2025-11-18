@@ -76,15 +76,6 @@ It models **autonomous task planning** — balancing user delight with logistics
 
 ---
 
-### **Acceptance Criteria**
-✅ **Given:** a travel prompt:  
-```json
-{
-  "destination": "Japan",
-  "dates": "2026-04-01 to 2026-04-07",
-  "preferences": ["culture", "food", "technology"],
-  "budget": "moderate"
-}
 
 
 ✅ When: the Purple Travel Agent receives it via A2A,
