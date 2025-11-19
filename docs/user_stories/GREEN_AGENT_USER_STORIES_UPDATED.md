@@ -627,18 +627,24 @@ Validator → Confirms exploitation success
 
 ## 8. Future Attack Scenarios
 
-### Story 8.1: SQL Injection Attack Scenario 📋 PLANNED
-**Status:** Templates exist (T1190), full scenario not implemented  
+### Story 8.1: SQL Injection Attack Scenario ✅ IMPLEMENTED
+**Status:** ✅ IMPLEMENTED via MITRE Payload Generator (T1190)  
+**Templates:** 6 SQL injection patterns with parameter substitution  
+**Capabilities:** Classic SQLi, UNION attacks, DROP TABLE, auth bypass, column enumeration  
 **Priority:** P1 (High)  
 **Story Points:** 21
 
-### Story 8.2: Command Injection Attack Scenario 📋 PLANNED
-**Status:** Templates exist (T1059), full scenario not implemented  
+### Story 8.2: Command Injection Attack Scenario ✅ IMPLEMENTED
+**Status:** ✅ IMPLEMENTED via MITRE Payload Generator (T1059)  
+**Templates:** 6 command injection patterns with 6 command variations  
+**Capabilities:** Shell injection, command chaining, backtick execution, reverse shells  
 **Priority:** P1 (High)  
 **Story Points:** 13
 
-### Story 8.3: Cross-Site Scripting (XSS) Attack Scenario 📋 PLANNED
-**Status:** Templates exist (T1189), full scenario not implemented  
+### Story 8.3: Cross-Site Scripting (XSS) Attack Scenario ✅ IMPLEMENTED
+**Status:** ✅ IMPLEMENTED via MITRE Payload Generator (T1189)  
+**Templates:** 5 XSS patterns with 4 script variations  
+**Capabilities:** Script tags, event handlers, SVG XSS, cookie stealing, base64 obfuscation  
 **Priority:** P2 (Medium)  
 **Story Points:** 13
 
@@ -652,8 +658,10 @@ Validator → Confirms exploitation success
 **Priority:** P1 (High)  
 **Story Points:** 13
 
-### Story 8.6: Data Exfiltration Attack Scenario 🚧 PARTIAL
-**Status:** Templates exist (T1048), full scenario partial  
+### Story 8.6: Data Exfiltration Attack Scenario ✅ IMPLEMENTED
+**Status:** ✅ IMPLEMENTED via MITRE Payload Generator (T1048)  
+**Templates:** 4 exfiltration patterns with multiple destinations  
+**Capabilities:** HTTP/FTP upload, webhooks (Pastebin/Discord), file/env/cookie stealing  
 **Priority:** P1 (High)  
 **Story Points:** 13
 
@@ -669,18 +677,18 @@ Validator → Confirms exploitation success
 ### By Implementation Status
 
 **✅ IMPLEMENTED (Ready to Use):**
-- 18 stories
-- 195 story points
+- 22 stories (+4 attack scenarios)
+- 255 story points
 - **Core system is production-ready**
 
 **🚧 PARTIAL (Needs Work):**
-- 2 stories
-- 34 story points
-- **Multi-stage attacks, some scenarios**
+- 1 story (Multi-stage attack chains)
+- 21 story points
+- **Timing-based attacks**
 
 **📋 PLANNED (Future Work):**
-- 17 stories
-- 232 story points
+- 14 stories
+- 171 story points
 - **Research, datasets, advanced features**
 
 ### By Priority (Implemented Only)
