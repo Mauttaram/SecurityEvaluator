@@ -803,6 +803,12 @@ async def main():
         action='store_true',
         help='Enable LLM integration (requires API key)'
     )
+    parser.add_argument(
+        '--card-url',
+        type=str,
+        default=None,
+        help='Public URL for agent card (for AgentBeats platform)'
+    )
 
     args = parser.parse_args()
 
@@ -820,8 +826,9 @@ async def main():
     # Create executor
     executor = GreenExecutor(agent)
 
-    # Get agent card
-    card_url = f"http://{args.host}:{args.port}/"
+    # Create agent card
+    # Use provided card-url if available, otherwise construct from host:port
+    card_url = args.card_url if args.card_url else f"http://{args.host}:{args.port}/"
     agent_card = cybersecurity_agent_card(
         agent_name="Cyber Security Evaluator",
         card_url=card_url
