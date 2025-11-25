@@ -29,8 +29,8 @@ python3 src/agentbeats/controller.py \
     --agent-name "Cyber Security Evaluator" \
     --agent-port 9010 \
     --controller-port 9000 \
-    --launch-script ./run_green_agent.sh \
-    --working-dir . \
+    --launch-script "$(pwd)/run_green_agent.sh" \
+    --working-dir "$(pwd)" \
     --auto-start > /tmp/green_controller.log 2>&1 &
 
 GREEN_CONTROLLER_PID=$!
@@ -43,8 +43,8 @@ python3 src/agentbeats/controller.py \
     --agent-name "Home Automation Agent" \
     --agent-port 8000 \
     --controller-port 8100 \
-    --launch-script ./run_purple_agent.sh \
-    --working-dir . \
+    --launch-script "$(pwd)/run_purple_agent.sh" \
+    --working-dir "$(pwd)" \
     --auto-start > /tmp/purple_controller.log 2>&1 &
 
 PURPLE_CONTROLLER_PID=$!
