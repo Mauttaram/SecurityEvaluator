@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 
 import httpx
+from fastapi.responses import JSONResponse
 from agentbeats.green_executor import GreenAgent
 from agentbeats.models import EvalRequest as AgentBeatsEvalRequest
 from a2a.server.tasks import TaskUpdater
@@ -855,6 +856,29 @@ async def main():
         agent_card_url='/.well-known/agent-card.json',
         rpc_url='/'
     )
+
+    # Add GET handler for root path (Launcher URL support)
+    @app.route("/", methods=["GET"])
+    async def launcher_health(request):
+        return JSONResponse({
+            "status": "online",
+            "launcher": "ready",
+            "agent": {
+                "name": agent_card.name,
+                "url": agent_card.url,
+                "card_url": f"{agent_card.url}/.well-known/agent-card.json"
+            }
+        })
+
+    # Add /status endpoint for AgentBeats launcher validation
+    @app.route("/status", methods=["GET"])
+    async def launcher_status(request):
+        return JSONResponse({
+            "status": "pass",
+            "version": "1",
+            "agent": agent_card.name,
+            "description": "Green Agent launcher is ready"
+        })
 
     uvicorn_config = uvicorn.Config(app, host=args.host, port=args.port)
     uvicorn_server = uvicorn.Server(uvicorn_config)

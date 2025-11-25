@@ -629,6 +629,29 @@ def run_server(port: int = 8000, host: str = "127.0.0.1"):
         """Expose agent card for A2A discovery."""
         return JSONResponse(content=agent_card.model_dump(mode='json'))
 
+    @app.get("/")
+    async def launcher_health():
+        """Launcher URL health check / ID Preview."""
+        return {
+            "status": "online",
+            "launcher": "ready",
+            "agent": {
+                "name": agent_card.name,
+                "url": agent_card.url,
+                "card_url": f"{agent_card.url}/.well-known/agent-card.json"
+            }
+        }
+
+    @app.get("/status")
+    async def launcher_status():
+        """AgentBeats launcher status check."""
+        return {
+            "status": "pass",
+            "version": "1",
+            "agent": agent_card.name,
+            "description": "Purple Agent launcher is ready"
+        }
+
     @app.post("/")
     @app.post("/command")
     async def handle_command(request_data: dict):
