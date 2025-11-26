@@ -646,7 +646,7 @@ def run_server(port: int = 8000, host: str = "127.0.0.1"):
     async def launcher_status():
         """AgentBeats launcher status check."""
         return {
-            "status": "pass",
+            "status": "server up, with agent running",
             "version": "1",
             "agent": agent_card.name,
             "description": "Purple Agent launcher is ready"
