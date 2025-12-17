@@ -5,6 +5,7 @@ on:
     branches:
       - multiagent-prompt-injection
       - main
+      - feat/agentbeats-submission
     paths:
       - 'green_agents/**'
       - 'purple_agents/**'
