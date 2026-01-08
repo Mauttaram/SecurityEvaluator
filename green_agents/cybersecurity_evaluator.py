@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional, List, Union
 from datetime import datetime
 
 import httpx
+from fastapi.responses import JSONResponse
 from agentbeats.green_executor import GreenAgent
 from agentbeats.models import EvalRequest as AgentBeatsEvalRequest
 from a2a.server.tasks import TaskUpdater
@@ -809,15 +810,27 @@ async def main():
         default=None,
         help='Public URL for agent card (for AgentBeats platform)'
     )
+    parser.add_argument(
+        '--name-prefix',
+        type=str,
+        default='',
+        help='Prefix for agent name (e.g., "001" for "001_Cyber Security Evaluator")'
+    )
 
     args = parser.parse_args()
 
+    # Build agent name with optional prefix
+    base_name = "Cyber Security Evaluator"
+    agent_name = f"{args.name_prefix}_{base_name}" if args.name_prefix else base_name
+    
     logger.info("=" * 70)
-    logger.info("Cyber Security Evaluator - Green Agent")
+    logger.info(f"{agent_name} - Green Agent")
     logger.info("=" * 70)
     logger.info(f"Host: {args.host}")
     logger.info(f"Port: {args.port}")
     logger.info(f"LLM: {'Enabled' if args.enable_llm else 'Disabled'}")
+    if args.name_prefix:
+        logger.info(f"Name Prefix: {args.name_prefix}")
     logger.info("=" * 70)
 
     # Create agent
@@ -830,7 +843,7 @@ async def main():
     # Use provided card-url if available, otherwise construct from host:port
     card_url = args.card_url if args.card_url else f"http://{args.host}:{args.port}/"
     agent_card = cybersecurity_agent_card(
-        agent_name="Cyber Security Evaluator",
+        agent_name=agent_name,
         card_url=card_url
     )
 
@@ -855,6 +868,52 @@ async def main():
         agent_card_url='/.well-known/agent-card.json',
         rpc_url='/'
     )
+
+    # Add GET handler for root path (Launcher URL support)
+    @app.route("/", methods=["GET"])
+    async def launcher_health(request):
+        return JSONResponse({
+            "status": "online",
+            "launcher": "ready",
+            "agent": {
+                "name": agent_card.name,
+                "url": agent_card.url,
+                "card_url": f"{agent_card.url}/.well-known/agent-card.json"
+            }
+        })
+
+    # Add /status endpoint for AgentBeats launcher validation
+    @app.route("/status", methods=["GET"])
+    async def launcher_status(request):
+        return JSONResponse({
+            "status": "server up, with agent running",
+            "version": "1",
+            "agent": agent_card.name,
+            "description": "Green Agent launcher is ready"
+        })
+
+    # Add /reset endpoint for AgentBeats battle reset
+    @app.route("/reset", methods=["POST"])
+    async def reset_agent_endpoint(request):
+        """Reset agent state between battles."""
+        try:
+            # Reset the Green Agent if it has a reset method
+            if hasattr(agent, 'reset'):
+                agent.reset()
+
+            logger.info("Agent reset successful")
+            return JSONResponse({
+                "status": "success",
+                "message": "Agent has been reset",
+                "agent": agent_card.name
+            })
+        except Exception as e:
+            logger.error(f"Reset failed: {e}")
+            return JSONResponse({
+                "status": "error",
+                "message": f"Reset failed: {str(e)}",
+                "agent": agent_card.name
+            }, status_code=500)
 
     uvicorn_config = uvicorn.Config(app, host=args.host, port=args.port)
     uvicorn_server = uvicorn.Server(uvicorn_config)
