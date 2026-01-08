@@ -1,0 +1,174 @@
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                       EVALUATION EXECUTION FLOW                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+START
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. INITIALIZATION                                               │
+│    • User calls ecosystem.evaluate(purple_agent, max_rounds=5)  │
+│    • Orchestrator plans 5-round execution                       │
+│    • Knowledge Base initialized                                 │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. ROUND 1-2: EXPLORATION PHASE                                 │
+│                                                                 │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 2.1 Form Attack Coalition                       │         │
+│    │     └─> [BoundaryProber, Mutator]               │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 2.2 BoundaryProber: Find Weak Boundaries        │         │
+│    │     • Create attack variants                    │         │
+│    │     • Test Purple Agent                         │         │
+│    │     • Bisection search for threshold            │         │
+│    │     • Find: blind_sqli threshold = 0.5          │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 2.3 Mutator: Generate Variations                │         │
+│    │     • Apply Novelty Search                      │         │
+│    │     • Encode, obfuscate, mutate                 │         │
+│    │     • Create novel attack variants              │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 2.4 Validator: Filter Unrealistic                │         │
+│    │     • Syntax validation                          │         │
+│    │     • Semantic checks                            │         │
+│    │     • Realism scoring                            │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 2.5 Knowledge Base Update                        │         │
+│    │     • Store boundary findings                    │         │
+│    │     • Track per-technique metrics                │         │
+│    │     • Share with all agents                      │         │
+│    └─────────────────────────────────────────────────┘         │
+│                                                                 │
+│    RESULT: Identified weak areas (e.g., blind_sqli F1=0.5)     │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. ROUND 3-4: EXPLOITATION PHASE                                │
+│                                                                 │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 3.1 Adaptive Planner Analysis                    │         │
+│    │     • Query Knowledge Base                       │         │
+│    │     • Identify techniques with F1 < 0.6          │         │
+│    │     • Found: blind_sqli, time_based              │         │
+│    │     • Allocate 60% tests to weak areas           │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 3.2 Exploiter: Target Weaknesses                 │         │
+│    │     • Generate 30 blind_sqli attacks             │         │
+│    │     • Generate 10 time_based attacks             │         │
+│    │     • Generate 10 other techniques (maintenance) │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 3.3 Mutator: Evolve Successful Attacks           │         │
+│    │     • Thompson Sampling for technique selection  │         │
+│    │     • Crossover successful payloads              │         │
+│    │     • Novelty pressure for diversity             │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 3.4 Test Purple Agent (50 tests)                 │         │
+│    │     └─> Collect TestResults                      │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 3.5 Update Metrics                                │         │
+│    │     • blind_sqli: F1 improved 0.5 → 0.7          │         │
+│    │     • time_based: F1 improved 0.55 → 0.75        │         │
+│    └─────────────────────────────────────────────────┘         │
+│                                                                 │
+│    RESULT: Weak areas improving, converging to target           │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. ROUND 5: VALIDATION PHASE                                    │
+│                                                                 │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 4.1 Form Validation Coalition                    │         │
+│    │     └─> [Perspective, LLMJudge, Counterfactual]  │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 4.2 LLM Judge: Multi-LLM Consensus (if enabled)  │         │
+│    │                                                  │         │
+│    │     FOR each test result:                       │         │
+│    │       ├─> Query OpenAI:    Vote = 1 (correct)   │         │
+│    │       ├─> Query Anthropic: Vote = 1 (correct)   │         │
+│    │       └─> Query Google:    Vote = 0 (incorrect) │         │
+│    │                                                  │         │
+│    │     Dawid-Skene Algorithm:                      │         │
+│    │       ├─> E-step: Update posteriors             │         │
+│    │       ├─> M-step: Update judge confusion matrix │         │
+│    │       ├─> Iterate 20 times                      │         │
+│    │       └─> Consensus: 1 (confidence=0.85)        │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 4.3 Perspective Assessment                       │         │
+│    │     • Security Expert view                       │         │
+│    │     • Developer view                             │         │
+│    │     • Pentester view                             │         │
+│    └─────────────────────────────────────────────────┘         │
+│                          │                                      │
+│                          ▼                                      │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ 4.4 Counterfactual: Fix Suggestions              │         │
+│    │     • Analyze false negatives                    │         │
+│    │     • Generate remediation steps                 │         │
+│    │     • Suggest detection improvements             │         │
+│    └─────────────────────────────────────────────────┘         │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 5. FINAL: CALCULATE METRICS & RETURN RESULTS                    │
+│                                                                 │
+│    ┌─────────────────────────────────────────────────┐         │
+│    │ EvaluationResult                                 │         │
+│    │                                                  │         │
+│    │ metrics:                                         │         │
+│    │   • F1 Score: 0.847                              │         │
+│    │   • Precision: 0.923                             │         │
+│    │   • Recall: 0.781                                │         │
+│    │   • Accuracy: 0.865                              │         │
+│    │                                                  │         │
+│    │ per_technique:                                   │         │
+│    │   • classic_sqli: F1=0.950                       │         │
+│    │   • blind_sqli: F1=0.710                         │         │
+│    │   • union_based: F1=0.880                        │         │
+│    │   • time_based: F1=0.890                         │         │
+│    │                                                  │         │
+│    │ cost_usd: $0.39 (multi-LLM)                      │         │
+│    │ duration_seconds: 187.3                          │         │
+│    │                                                  │         │
+│    │ remediation_suggestions: [...]                   │         │
+│    └─────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+  │
+  ▼
+END
