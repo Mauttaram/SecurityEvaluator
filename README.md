@@ -5,6 +5,7 @@
 **Version:** 3.2 - Full MITRE Integration
 **Status:** ✅ Production Ready with 100% MITRE Coverage
 **Competition:** AgentBeats Security Evaluation
+**Award:** 2nd Place - CyberSecurity Track, Berkeley Agentic MOOCs Competition Phase 1
 **Last Updated:** November 15, 2025
 
 > **🎯 NEW: Complete MITRE Integration!**  
